@@ -72,13 +72,14 @@ class ChatTemplatePrompter(Prompter):
     def chat_template_msg_variables(self) -> Set[str]:
         return self._chat_template_msg_variables
 
-    def build_prompt(self, conversation, add_generation_prompt=False, images=None):
+    def build_prompt(self, conversation, tools=None, add_generation_prompt=False, images=None):
         if self.processor:
             if not callable(self.processor):
                 raise TypeError("Processor must be callable")
 
             text = self.processor.apply_chat_template(
                 conversation,
+                tools=tools,
                 chat_template=self.chat_template,
                 tokenize=False,
                 add_generation_prompt=add_generation_prompt,
@@ -98,6 +99,7 @@ class ChatTemplatePrompter(Prompter):
 
         return self.tokenizer.apply_chat_template(
             conversation,
+            tools=tools,
             add_generation_prompt=add_generation_prompt,
             chat_template=self.chat_template,
         )
@@ -289,13 +291,15 @@ class ChatTemplateStrategy(PromptTokenizingStrategy):
             and not self.prompter.message_field_training_detail  # type: ignore
         ):
             turns = self.get_conversation_thread(prompt)
+            tools = prompt.get("tools", None)
             images = self.get_images(prompt)
             prompt_ids = self.prompter.build_prompt(  # type: ignore
                 turns[:-1],
+                tools=tools,
                 add_generation_prompt=True,
                 images=images,
             )
-            tokenized_res = self.prompter.build_prompt(turns, images=images)  # type: ignore
+            tokenized_res = self.prompter.build_prompt(turns, tools=tools, images=images)  # type: ignore
             tokenized_prompt = {}
             if isinstance(tokenized_res, list):
                 input_ids = prompt_ids + tokenized_res[len(prompt_ids) :]
@@ -316,7 +320,7 @@ class ChatTemplateStrategy(PromptTokenizingStrategy):
             return tokenized_prompt
 
         turns = self.get_conversation_thread(prompt)
-        input_ids = self.prompter.build_prompt(turns)  # type: ignore
+        input_ids = self.prompter.build_prompt(turns, tools=tools)  # type: ignore
         labels = [IGNORE_TOKEN_ID] * len(input_ids)
 
         last_eos_idx = -1
@@ -340,7 +344,7 @@ class ChatTemplateStrategy(PromptTokenizingStrategy):
 
             LOG.debug(f"Should train: {should_train}")
 
-            turn_start_idx, turn_end_idx = self.find_turn(turns=turns, turn_idx=index)
+            turn_start_idx, turn_end_idx = self.find_turn(turns=turns, tools=tools, turn_idx=index)
 
             LOG.debug(f"Turn indices: start={turn_start_idx}, end={turn_end_idx}")
 
@@ -402,7 +406,7 @@ class ChatTemplateStrategy(PromptTokenizingStrategy):
                 return i
         return -1
 
-    def find_turn(self, turns: list[dict], turn_idx: int):
+    def find_turn(self, turns: list[dict], tools: list|None, turn_idx: int):
         """
         Locate the starting and ending indices of the specified turn in a conversation.
         """
@@ -433,10 +437,10 @@ class ChatTemplateStrategy(PromptTokenizingStrategy):
         turns_with_content = turns[: turn_idx + 1]
 
         # Generate the conversation up to the turn, with final turn replaced with dummy content
-        dummy_ids = self.prompter.build_prompt(turns_with_empty)  # type: ignore
+        dummy_ids = self.prompter.build_prompt(turns_with_empty, tools=tools)  # type: ignore
 
         # Generate the conversation up to the turn, with final turn included
-        full_ids = self.prompter.build_prompt(turns_with_content)  # type: ignore
+        full_ids = self.prompter.build_prompt(turns_with_content, tools=tools)  # type: ignore
 
         if not full_ids or not dummy_ids:
             LOG.warning(f"Empty template generated for turn {turn_idx}")

@@ -60,7 +60,7 @@ class PromptTokenizingStrategy(abc.ABC):
         return False
 
     def _tokenize(
-        self, prompt: str, tools: list, add_eos_token: bool = True, strip_bos_token: bool = False
+        self, prompt: str, add_eos_token: bool = True, strip_bos_token: bool = False
     ) -> BatchEncoding:
         empty = BatchEncoding(data={"input_ids": [], "attention_mask": []})
         if not prompt:
@@ -69,7 +69,6 @@ class PromptTokenizingStrategy(abc.ABC):
 
         result = self.tokenizer(
             prompt,
-            tools=tools,
             truncation=True,
             max_length=self.max_length,
             padding=False,
