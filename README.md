@@ -1,1 +1,1 @@
-This repository is clone from [axolotl]https://github.com/axolotl-ai-cloud/axolotl
+This repository is cloned from https://github.com/axolotl-ai-cloud/axolotl
