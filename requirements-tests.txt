@@ -1,0 +1,7 @@
+codecov
+pytest
+pytest-cov
+pytest-retry
+pytest-sugar
+pytest-xdist
+tbparse
