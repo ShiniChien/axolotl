@@ -283,6 +283,7 @@ class ChatTemplateStrategy(PromptTokenizingStrategy):
         return dict(res)
 
     def _tokenize_single_prompt(self, prompt: dict) -> Dict[str, List[int]]:
+        tools = prompt.get("tools", None)
         # Old simple legacy behavior that works reliably.
         if (
             not self.roles_to_train
@@ -291,7 +292,6 @@ class ChatTemplateStrategy(PromptTokenizingStrategy):
             and not self.prompter.message_field_training_detail  # type: ignore
         ):
             turns = self.get_conversation_thread(prompt)
-            tools = prompt.get("tools", None)
             images = self.get_images(prompt)
             prompt_ids = self.prompter.build_prompt(  # type: ignore
                 turns[:-1],
@@ -341,6 +341,8 @@ class ChatTemplateStrategy(PromptTokenizingStrategy):
                 should_train = bool(train_detail)
             else:
                 should_train = self.train_on_inputs or role in self.roles_to_train
+                if should_train and turn.get("metadata", {}).get("masked", False):
+                    should_train = False
 
             LOG.debug(f"Should train: {should_train}")
 
@@ -477,10 +479,24 @@ class ChatTemplateStrategy(PromptTokenizingStrategy):
             )
             return -1, -1
 
-        if end_idx == start_idx:
+        if end_idx == start_idx and turns[turn_idx].get("role") != "tool":
             LOG.warning(
                 f"Content end boundary is the same as start boundary for turn {turn_idx}. This is likely an empty turn."
             )
+            # import json
+            # with open("/mnt/data/work/slm/text.jsonl", "a") as f:
+            #     f.write(
+            #         json.dumps(
+            #             {
+            #                 "turns_with_content": turns_with_content,
+            #                 "turns_with_empty": turns_with_empty,
+            #                 "end_idx": end_idx,
+            #                 "start_idx": start_idx,
+            #             },
+            #             ensure_ascii=False,
+            #         )
+            #         + "\n"
+            #     )
             return -1, -1
 
         LOG.debug(f"Content boundaries: {start_idx}, {end_idx}")
