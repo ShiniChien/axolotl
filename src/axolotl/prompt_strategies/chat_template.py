@@ -2,6 +2,7 @@
 HF Chat Templates prompt strategy
 """
 
+import json
 import logging
 from collections import defaultdict
 from typing import Any, Dict, List, Optional, Set, Union
@@ -40,6 +41,7 @@ class ChatTemplatePrompter(Prompter):
         if message_property_mappings is None or (not message_property_mappings):
             message_property_mappings = {
                 "role": "role",
+                "tool_calls": "tool_calls",
                 "content": "content",
             }
 
@@ -329,6 +331,7 @@ class ChatTemplateStrategy(PromptTokenizingStrategy):
             content = turn.get("content")
             train_turn = turn.get("training")
             train_detail = turn.get("training_detail")
+            metadata = turn.get("metadata", {}) or {}
 
             LOG.debug(
                 f"Processing turn {index}: role={role}, content={content}, train_turn={train_turn}, train_detail={train_detail}"
@@ -341,7 +344,8 @@ class ChatTemplateStrategy(PromptTokenizingStrategy):
                 should_train = bool(train_detail)
             else:
                 should_train = self.train_on_inputs or role in self.roles_to_train
-                if should_train and turn.get("metadata", {}).get("masked", False):
+                if should_train and metadata.get("masked", False):
+                    # LOG.warning(f"Turn {index} is masked, not training on it.")
                     should_train = False
 
             LOG.debug(f"Should train: {should_train}")
@@ -510,9 +514,18 @@ class ChatTemplateStrategy(PromptTokenizingStrategy):
         turns = []
         for message in prompt[self.prompter.field_messages]:
             transformed_message = self.transform_message(message)
+            
+            if "tool_calls" in transformed_message and transformed_message["role"] == "assistant":
+                for tool_call in transformed_message["tool_calls"]:
+                    if isinstance(tool_call["function"]["arguments"], str):
+                        args_obj = json.loads(tool_call["function"]["arguments"])
+                        tool_call["function"]["arguments"] = args_obj
+                    #     LOG.warning(
+                    # f"Tool call arguments are not a valid JSON string: {tool_call['function']['arguments']}")
 
             turn = {
                 **transformed_message,
+                "metadata": message.get("metadata", {}),
                 "training": message.get(self.prompter.message_field_training),
                 "training_detail": message.get(
                     self.prompter.message_field_training_detail

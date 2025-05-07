@@ -200,14 +200,21 @@ def load_dataset_w_config(
                     )
         elif local_path.is_file():
             ds_type = get_ds_type(config_dataset)
-
-            ds = load_dataset(  # pylint: disable=invalid-name
-                ds_type,
-                name=config_dataset.name,
-                data_files=config_dataset.path,
-                streaming=False,
-                **load_ds_kwargs,
-            )
+            
+            if ds_type == "json" and isinstance(config_dataset.path, str) and config_dataset.path.endswith(".jsonl"):
+                import json
+                from tqdm import tqdm
+                with open(config_dataset.path, "r", encoding="utf-8") as f:
+                    lines = [json.loads(line) for line in tqdm(f)]
+                ds = Dataset.from_list(lines)
+            else:
+                ds = load_dataset(  # pylint: disable=invalid-name
+                    ds_type,
+                    name=config_dataset.name,
+                    data_files=config_dataset.path,
+                    streaming=False,
+                    **load_ds_kwargs,
+                )
         else:
             raise ValueError(
                 "unhandled dataset load: local path exists, but is neither a directory or a file"

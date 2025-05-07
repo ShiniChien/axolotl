@@ -9,11 +9,12 @@ from enum import Enum
 import huggingface_hub
 import numpy as np
 import requests
+import multiprocessing
 from datasets import Dataset, IterableDataset
 
 from axolotl.utils.dict import DictDefault
 from axolotl.utils.samplers.utils import get_dataset_lengths
-from axolotl.utils.trainer import drop_long_seq
+from axolotl.utils.trainer import drop_long_seq, trim_seq
 
 LOG = logging.getLogger(__name__)
 
@@ -169,6 +170,15 @@ def drop_long_seq_in_dataset(dataset: Dataset, cfg: DictDefault):
         drop_long_seq,
         sequence_len=cfg.sequence_len,
         min_sequence_len=cfg.min_sample_len,
+    )
+    trim_seq_func = functools.partial(
+        trim_seq,
+        sequence_len=cfg.sequence_len
+    )
+    dataset = dataset.map(
+        trim_seq_func,
+        batched=True,
+        num_proc=min(32, multiprocessing.cpu_count()),
     )
 
     try:

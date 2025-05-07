@@ -234,6 +234,50 @@ def drop_long_seq(sample, sequence_len=2048, min_sequence_len=2):
         results.append(min_sequence_len <= length <= sequence_len)
     return results
 
+def trim_seq(sample, sequence_len=2048):
+    """
+    Trim samples whose sequence length is too long (> sequence_len).
+    Works for both single-example (list[int]) and batched (list[list[int]]).
+    For each sequence, finds the proper cut length based on the last -100 in labels
+    (or falls back to sequence_len), then trims **all** list-valued fields in sample
+    to that length.
+    """
+    def get_cut_len(seq, lbl):
+        # Determine how much to cut based on labels
+        if len(seq) > sequence_len:
+            try:
+                # find last -100 within the first sequence_len tokens
+                pos = len(lbl[:sequence_len]) - lbl[:sequence_len][-1::-1].index(-100)
+            except ValueError:
+                # no -100 found => cut exactly at sequence_len
+                pos = sequence_len
+            return pos
+        return len(seq)
+
+    input_ids = sample["input_ids"]
+    labels = sample.get("labels")
+
+    # Single example: lists of ints
+    if isinstance(input_ids[0], int):
+        cut_len = get_cut_len(input_ids, labels)
+        # print(f"cut_len: {cut_len} sequence_len: {len(input_ids)}")
+        # Trim every list-valued field to cut_len
+        return {k: v[:cut_len] for k, v in sample.items()}
+
+    # Batched: lists of lists
+    batch_size = len(input_ids)
+    trimmed = {k: [] for k in sample}
+
+    for i in range(batch_size):
+        seq = input_ids[i]
+        lbl = labels[i]
+        cut_len = get_cut_len(seq, lbl)
+        # print(f"cut_len: {cut_len} sequence_len: {len(seq)}")
+        # Trim each field's i-th element
+        for k, v in sample.items():
+            trimmed[k].append(v[i][:cut_len])
+
+    return trimmed
 
 def process_datasets_for_packing(cfg, train_dataset, eval_dataset):
     drop_attn_mask = cfg.model_config_type in ["mamba", "gemma3"]
@@ -373,7 +417,7 @@ def process_pretraining_datasets_for_packing(
     train_dataset, sequence_len, skip_position_ids=True, drop_attention_mask=False
 ):
     drop_long = partial(drop_long_seq, sequence_len=sequence_len)
-
+    
     train_dataset = train_dataset.filter(
         drop_long,
         desc="Dropping Long Sequences",
