@@ -5,7 +5,7 @@ dataset loading shared utils
 from pathlib import Path
 from typing import Optional, Union
 
-from datasets import Dataset, DatasetDict, load_dataset, load_from_disk
+from datasets import Dataset, DatasetDict, load_dataset, load_from_disk, Value, Features, LargeList
 from huggingface_hub import hf_hub_download, snapshot_download
 from huggingface_hub.errors import (
     HFValidationError,
@@ -206,7 +206,27 @@ def load_dataset_w_config(
                 from tqdm import tqdm
                 with open(config_dataset.path, "r", encoding="utf-8") as f:
                     lines = [json.loads(line) for line in tqdm(f)]
-                ds = Dataset.from_list(lines)
+                    features = Features({
+                        "messages": LargeList(
+                            Features(
+                                {
+                                    "role": Value("string"),
+                                    "content": Value("string"),
+                                    "tool_calls": LargeList(
+                                        Features({
+                                            "type": Value("string"),
+                                            "function": Features({
+                                                "name": Value("string"),
+                                                "arguments": Value("string"),
+                                            }),
+                                        })
+                                    )
+                                }
+                            )
+                        ),
+                        "tools": Value("string")
+                    })
+                    ds = Dataset.from_dict({key: [d[key] for d in lines] for key in lines[0]}, features=features)
             else:
                 ds = load_dataset(  # pylint: disable=invalid-name
                     ds_type,

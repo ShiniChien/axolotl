@@ -63,6 +63,7 @@ class TokenizedPromptDataset(Dataset):
                 desc="Strategy Filtering Rows",
             )
 
+        # print(dataset[0])
         return dataset.map(
             self.prompt_tokenizer.tokenize_prompt,
             num_proc=num_proc,

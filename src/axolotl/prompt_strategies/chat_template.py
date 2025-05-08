@@ -286,6 +286,8 @@ class ChatTemplateStrategy(PromptTokenizingStrategy):
 
     def _tokenize_single_prompt(self, prompt: dict) -> Dict[str, List[int]]:
         tools = prompt.get("tools", None)
+        if tools and isinstance(tools, str):
+            tools = eval(tools)
         # Old simple legacy behavior that works reliably.
         if (
             not self.roles_to_train
