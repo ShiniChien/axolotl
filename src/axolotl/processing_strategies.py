@@ -271,6 +271,7 @@ def get_processing_strategy(
         "llama4",
         "llava",
         "mistral_v7_tekken",
+        "mistral_v7_tekken_custom",
         "pixtral",
     ]:
         return ProcessingStrategy(

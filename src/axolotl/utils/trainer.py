@@ -331,6 +331,7 @@ def process_datasets_for_packing(cfg, train_dataset, eval_dataset):
     train_dataset = train_dataset.filter(
         drop_no_trainable_tokens,
         batched=True,
+        batch_size=100,
         **filter_map_kwargs,
         **drop_long_kwargs,
     )
@@ -399,6 +400,7 @@ def process_datasets_for_packing(cfg, train_dataset, eval_dataset):
         train_dataset = train_dataset.map(
             add_position_ids,
             batched=True,
+            batch_size=100,
             **filter_map_kwargs,
             **drop_long_kwargs,
         )
@@ -422,11 +424,13 @@ def process_pretraining_datasets_for_packing(
         drop_long,
         desc="Dropping Long Sequences",
         load_from_cache_file=False,
+        num_proc=os.cpu_count(),
     )
     if not skip_position_ids:
         train_dataset = train_dataset.map(
             add_position_ids,
             desc="Add position_id column (Pretraining Sample Packing)",
+            num_proc=os.cpu_count(),
         )
     if drop_attention_mask:
         train_dataset = train_dataset.remove_columns("attention_mask")

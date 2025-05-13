@@ -42,6 +42,7 @@ class ChatTemplatePrompter(Prompter):
             message_property_mappings = {
                 "role": "role",
                 "tool_calls": "tool_calls",
+                "tool_call_id": "tool_call_id",
                 "content": "content",
             }
 
@@ -78,7 +79,7 @@ class ChatTemplatePrompter(Prompter):
         if self.processor:
             if not callable(self.processor):
                 raise TypeError("Processor must be callable")
-
+            # print(conversation, flush=True)
             text = self.processor.apply_chat_template(
                 conversation,
                 tools=tools,
@@ -97,8 +98,22 @@ class ChatTemplatePrompter(Prompter):
                     batch[k] = val.tolist()
                 else:
                     batch[k] = val.squeeze().tolist()
-            return batch
+            return batch["input_ids"]
 
+        # text = self.tokenizer.apply_chat_template(
+        #     conversation,
+        #     tools=tools,
+        #     add_generation_prompt=add_generation_prompt,
+        #     tokenize=False,
+        #     chat_template=self.chat_template,
+        # )
+        # batch = self.tokenizer(
+        #     text=text,
+        #     return_tensors="pt",
+        # )
+        # for k, val in batch.items():
+        #     batch[k] = val.squeeze().tolist()
+        # return batch["input_ids"]
         return self.tokenizer.apply_chat_template(
             conversation,
             tools=tools,
@@ -263,7 +278,6 @@ class ChatTemplateStrategy(PromptTokenizingStrategy):
         """
         Public method that can handle either a single prompt or a batch of prompts.
         """
-
         if not self.is_prompt_batched(prompt) or not self.supports_batched:
             return self._tokenize_single_prompt(prompt)
 
@@ -439,6 +453,9 @@ class ChatTemplateStrategy(PromptTokenizingStrategy):
             "role": turns[turn_idx].get("role"),
             "content": "[[dummy_message]]",
         }
+        if turns[turn_idx].get("role") == "tool":
+            tool_call_id = turns[turn_idx].get("tool_call_id")
+            empty_turn["tool_call_id"] = tool_call_id
 
         # Create conversation versions
         turns_with_empty = turns[:turn_idx] + [empty_turn]

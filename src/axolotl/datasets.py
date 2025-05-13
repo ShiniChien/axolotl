@@ -47,11 +47,12 @@ class TokenizedPromptDataset(Dataset):
     def process(self, dataset):
         features = dataset.features.keys()
         num_proc = min(64, self.process_count if self.process_count else os.cpu_count())
+        # num_proc = os.cpu_count()
 
         map_kwargs = {}
         if self.prompt_tokenizer.supports_batched:
             map_kwargs["batched"] = True
-            map_kwargs["batch_size"] = 1_000
+            map_kwargs["batch_size"] = 1000
 
         if (
             hasattr(self.prompt_tokenizer, "filter_rows")

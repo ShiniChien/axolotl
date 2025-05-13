@@ -204,29 +204,53 @@ def load_dataset_w_config(
             if ds_type == "json" and isinstance(config_dataset.path, str) and config_dataset.path.endswith(".jsonl"):
                 import json
                 from tqdm import tqdm
+                from uuid import uuid4
                 with open(config_dataset.path, "r", encoding="utf-8") as f:
-                    lines = [json.loads(line) for line in tqdm(f)]
-                    features = Features({
-                        "messages": LargeList(
-                            Features(
-                                {
-                                    "role": Value("string"),
-                                    "content": Value("string"),
-                                    "tool_calls": LargeList(
-                                        Features({
-                                            "type": Value("string"),
-                                            "function": Features({
-                                                "name": Value("string"),
-                                                "arguments": Value("string"),
-                                            }),
-                                        })
-                                    )
-                                }
-                            )
-                        ),
-                        "tools": Value("string")
-                    })
-                    ds = Dataset.from_dict({key: [d[key] for d in lines] for key in lines[0]}, features=features)
+                    lines = []
+                    for line in tqdm(f):
+                        tool_call_queue_id = []
+                        last_tool_call_id = None
+                        item = json.loads(line)
+                        for msg in item["messages"]:
+                            if msg["role"] == "assistant" and "tool_calls" in msg:
+                                for tool_call in msg["tool_calls"]:
+                                    tid = str(uuid4())
+                                    tool_call["id"] = tid
+                                    tool_call_queue_id.append(tid)
+                            elif msg["role"] == "tool":
+                                try:
+                                    msg["tool_call_id"] = tool_call_queue_id.pop(-1)
+                                    last_tool_call_id = msg["tool_call_id"]
+                                except:
+                                    if not last_tool_call_id:
+                                        break
+                                    msg["tool_call_id"] = last_tool_call_id
+                        lines.append(item)
+                    
+                features = Features({
+                    "messages": LargeList(
+                        Features(
+                            {
+                                "role": Value("string"),
+                                "content": Value("string"),
+                                "tool_calls": LargeList(
+                                    Features({
+                                        "id": Value("string"),
+                                        "type": Value("string"),
+                                        "function": Features({
+                                            "name": Value("string"),
+                                            "arguments": Value("string"),
+                                        }),
+                                    })
+                                ),
+                                "tool_call_id": Value("string"),
+                            }
+                        )
+                    ),
+                    "tools": Value("string")
+                })
+                ds = Dataset.from_dict({key: [d[key] for d in lines] for key in lines[0]}, features=features)
+                ds = ds.cast(features)
             else:
                 ds = load_dataset(  # pylint: disable=invalid-name
                     ds_type,

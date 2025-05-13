@@ -178,7 +178,7 @@ def drop_long_seq_in_dataset(dataset: Dataset, cfg: DictDefault):
     dataset = dataset.map(
         trim_seq_func,
         batched=True,
-        num_proc=min(32, multiprocessing.cpu_count()),
+        num_proc=min(64, multiprocessing.cpu_count()),
     )
 
     try:
